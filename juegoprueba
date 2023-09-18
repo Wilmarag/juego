@@ -1,0 +1,368 @@
+import pygame
+import random, sys
+
+
+
+
+#CREAMOS EL TAMAÑO DE LA VENTANA Y LOS COLORES A UTILIZAR
+
+ANCHO = 800
+ALTO = 600
+
+BLACK = (0,0,0)
+WHITE = (255,255,255)
+BLUE = (0,0,255)
+RED = (255,0,0)
+
+pygame.init()
+pygame.mixer.init()
+screen = pygame.display.set_mode((ANCHO,ALTO))
+pygame.display.set_caption("Shooter")
+
+#FTP DE VELOCIDAD DEL JUEGO
+clock = pygame.time.Clock()
+
+
+#FUNCION BARRA DE SALUD
+def draw_shield_bar(surface, x, y, percentage):
+    #DIBUJO LA BARRA DE SALUD
+    BAR_LENGHT = 100
+    BAR_HEIGHT = 10
+    fill = (percentage / 100) * BAR_LENGHT
+    border = pygame.Rect(x, y, BAR_LENGHT, BAR_HEIGHT)
+    fill = pygame.Rect(x, y, fill, BAR_HEIGHT)
+    pygame.draw.rect(surface, BLUE, fill)
+    pygame.draw.rect(surface, WHITE, border, 2)
+    
+
+#DEFINIMOS UNA FUNCION PARA EL MARCADOR 
+def draw_text(surface, text, size, x, y):
+    font = pygame.font.SysFont("serif", size)
+    text_surface = font.render(text, True, WHITE)
+    text_rect = text_surface.get_rect()
+    text_rect.midtop = (x, y)
+    surface.blit(text_surface, text_rect)
+
+#JUGADOR
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.imagenes = pygame.image.load("asset/rocket.png")
+        self.image = pygame.transform.scale(self.imagenes, (80,100)).convert()
+        self.image.set_colorkey(WHITE)
+        self.rect = self.image.get_rect()
+        self.rect.centerx = ANCHO // 2
+        self.rect.bottom = ALTO - 10
+        #BARRA DE SALUD
+        self.shield = 100
+
+    def update(self):
+        self.speed_x = 0
+        keystate = pygame.key.get_pressed()
+        if keystate[pygame.K_LEFT]:
+            self.speed_x = -5
+        if keystate[pygame.K_RIGHT]:
+            self.speed_x = 5
+        self.rect.x += self.speed_x
+        if self.rect.right > ANCHO:
+            self.rect.right = ANCHO
+        if self.rect.left < 0:
+            self.rect.left = 0
+    #FUNCION DISPARA
+    def shoot(self):
+        bala = Bullet(self.rect.centerx, self.rect.top)
+        all_sprites.add(bala)
+        balas.add(bala)
+        laser_sound.play()
+
+#ENEMIGOS
+class Enemigos(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        #LE DAMOS EL TAMALO A LA IMAGEN
+        self.imagenes = pygame.image.load("asset/meteoro.png")
+        self.image = pygame.transform.scale(self.imagenes, (80,100)).convert()
+        #COLOR DE FONDO DE LA IMAGEN
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        #SALGA DE CUALQUIER LUGAR
+        self.rect.x = random.randrange(ANCHO - self.rect.width)
+        #SE DESPLACE POR CUALQUIER LUGA
+        self.rect.y = random.randrange(-100, -40)
+        #VELOCIDAD
+        self.speedy = random.randrange(1, 10)
+        #
+        self.speedx = random.randrange(-5, 5)
+    
+    def update(self):
+        self.rect.y += self.speedy
+        self.rect.x += self.speedx
+        #DEVOLVER EL METEORO A LA POSICION ORIGINAL Y QUE SALGA NUEVAMENTE ALEATORIO
+        if self.rect.top > ALTO + 10 or self.rect.left < -15 or self.rect.right > ANCHO +25:
+            self.rect.x = random.randrange(ANCHO - self.rect.width)
+            self.rect.y = random.randrange(-140, -100)
+            self.speedy = random.randrange(1, 10)
+
+#ENEMIGOS 2
+class Enemigo2(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.imagenes = pygame.image.load("asset/meteoro.png")
+        #PARA SELECCIONAR CUALQUIER IMAGEN DE LA LISTA
+        #self.imagenes = random.choice(meteoro_images)
+        self.image = pygame.transform.scale(self.imagenes, (40,50)).convert()
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        self.rect.x = random.randrange(ANCHO - self.rect.width)
+        self.rect.y = random.randrange(-140, -100)
+        self.speedy = random.randrange(1, 5)
+        self.speedx = random.randrange(-5, 5)
+    
+    def update(self):
+        self.rect.y += self.speedy
+        self.rect.x += self.speedx
+        if self.rect.top > ALTO + 10 or self.rect.left < -40 or self.rect.right > ANCHO +25:
+            self.rect.x = random.randrange(ANCHO - self.rect.width)
+            self.rect.y = random.randrange(-100, -40)
+            self.speedy = random.randrange(1, 10)
+
+#ESCUDO
+class Escudo(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.imagenes = pygame.image.load("asset/missile.png")
+        self.image = pygame.transform.scale(self.imagenes, (20,25)).convert()
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        self.rect.x = random.randrange(ANCHO - self.rect.width)
+        self.rect.y = random.randrange(-140, -100)
+        self.speedy = random.randrange(1, 5)
+        self.speedx = random.randrange(-5, 5)
+    
+    def update(self):
+        self.rect.y += self.speedy
+        self.rect.x += self.speedx
+        if self.rect.top > ALTO + 10 or self.rect.left < -40 or self.rect.right > ANCHO +25:
+            self.rect.x = random.randrange(ANCHO - self.rect.width)
+            self.rect.y = random.randrange(-100, -40)
+            self.speedy = random.randrange(1, 2)
+
+
+#CLASE PARA CREAR LA BALA Y DISPARE
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.imagenes = pygame.image.load("asset/bullet.png")
+        self.image = pygame.transform.scale(self.imagenes, (15, 25)).convert()
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        self.rect.y = y
+        self.rect.centerx= x
+        self.sppedy = -10
+
+    #MOVIMIENTO DEL PROYECTIL
+    def update(self):
+        self.rect.y += self.sppedy
+        #ELIMINAR LA BALA PARA NO OCUPAR ESPACIO
+        if self.rect.bottom < 0:
+            self.kill()
+
+#CLASE PARA GENERAR LA EXPLOSION
+class Explosion(pygame.sprite.Sprite):
+    def __init__(self, center):
+        super().__init__()
+        self.image = explosion_anima[0] #SE INICIALIZA EN CERO PARA DESPUES IR ITERANDO POR CADA IMAGEN
+        self.rect = self.image.get_rect()
+        self.rect.center = center
+        self.frame = 0
+        #SABER EN QUE MOMENTO SE GENERA LA ANIMACION SABIENDO QUE ESTAMOS CORRIENDO A 60 FTP
+        self.las_update = pygame.time.get_ticks()
+        #CONTROLAR LA VELOCIDAD DE LA EXPLOCION
+        self.frame_rate = 50
+    def update(self):
+        #ME PERMITE SABER CUANTO TIEMPO A TRANSCURRIDO
+        now = pygame.time.get_ticks()
+        if now - self.las_update > self.frame_rate:
+            self.las_update = now
+            self.frame += 1
+            #PARA SABER SI YA LLEGAMOS AL FINAL DE LA LISTA DE ANIMACION PARA CERRAR LOS OTROS BUCLES
+            if self.frame == len(explosion_anima):
+                self.kill()
+            else:
+                center = self.rect.center
+                self.image = explosion_anima[self.frame]
+                self.rect = self.image.get_rect()
+                self.rect.center = center
+
+#VENTANA ADICIONAL DESPUES DEL GAME OVER
+def show_go_screen():
+    screen.blit(fondopantalla,[0,0])
+    #puntaje = 0
+    draw_text(screen, "SHOOTER", 65, ANCHO // 2, ALTO // 4)
+    #score_text = ("Puntaje: {score}",True, WHITE)
+    draw_text(screen, "Puntaje:{score} ", 27, ANCHO // 2, ALTO // 2)
+    draw_text(screen, "Presiona el Mouse para continuar", 20, ANCHO // 2, ALTO * 3/4)
+    pygame.display.flip()
+    waiting = True
+    while waiting:
+        clock.tick(60)
+        #VALIDAR SI YA SE PRECION ALGO EN LA VENTANA CUALQUIER TECLA
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                waiting = False
+
+
+#CREAMOS UNA LISTA PARA ANEXAR TODAS LAS IMAGENES DE LOS ENEMIGOS
+#meteoro_images = []
+#INSTANCIAMOS TODAS LAS IMAGENES EN UNA SOLO VARIABLE EN LISTA
+#meteoro_list[ traemos todas las instancias de las imagenes]
+#for img in meteoro_list:
+    #meteoro_images.append(pygame.image.load(img).convert())
+ 
+####-------------------------ANIMACION DE EXPLOSIONES-------------------------
+#REALIZAMOS UNA LISTA
+explosion_anima = []
+for i in range(6): #HASTA EL 9 PORQUE NO SE INCLUYE  
+    file = "asset/regularExplosion0{}.png".format(i) #PARA QUE VALIDE EL FORMATA DE LAS IMAGENES EN UN BUCLE
+    img = pygame.image.load(file).convert()
+    img.set_colorkey(BLACK)
+    #ESCALAR LA IMAGEN ORIGINAR PARA UNA ANIMACION MAS FLUIDA
+    img_scale = pygame.transform.scale(img, (70,70))
+    explosion_anima.append(img_scale)
+
+####
+
+#CARGAR EL FONDO DEL JUEGO
+fondopantalla = pygame.image.load("asset/Blue Nebula 8 - 1024x1024.png").convert()
+
+#CARGAR EL SONIDO
+laser_sound = pygame.mixer.Sound("asset/laser5.ogg")
+explosion_sound = pygame.mixer.Sound("asset/explosion.wav")
+pygame.mixer.music.load("asset/music.ogg")
+#CONTROLADOR DEL VOLUMEN
+pygame.mixer.music.set_volume(0.3)
+
+#SONAR LA MUSICA, NO SE PUEDE PONER EN EL BUCLE PRINCIPAL DEBIDO A QUE ESTE RECORRE A 60FTP
+pygame.mixer.music.play(loops=-1)
+
+#PARA QUE SALGA UNA VENTANA DE GAME OVER
+game_over = True
+
+#EMPEZAMOS A CORRER EL JUEGO
+running = True
+while running:
+    #VALIDAR EL GAME OVER
+    if game_over:
+        game_over = False 
+        #IMPLEMENTAMOS UNA VENTA DE GAME OVER
+        show_go_screen()
+        #ALMACENAR LOS GRUPOS
+        all_sprites = pygame.sprite.Group()
+        misil_list = pygame.sprite.Group()
+        misil_list2 = pygame.sprite.Group()
+        escudo_list = pygame.sprite.Group()
+        balas = pygame.sprite.Group()
+        #salud_list = pygame.sprite.Group()
+
+
+        jugador = Player()
+        all_sprites.add(jugador)
+
+        #UNIMOS LOS METEOROS AL JUEGO
+        for i in range(8):
+            misil = Enemigos()
+            misil2= Enemigo2()
+            salud = Escudo()
+            all_sprites.add(misil)
+            all_sprites.add(misil2)
+            all_sprites.add(salud)
+            misil_list.add(misil)
+            misil_list2.add(misil2)
+            escudo_list.add(salud)
+            
+        #MARCADOR
+        score = 0
+
+    clock.tick(60)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        #ANEXA EL EVENTO DE DISPARA
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                jugador.shoot()
+
+    all_sprites.update()
+
+    #COLICION BALA-OBJETO
+    hits = pygame.sprite.groupcollide(misil_list, balas, True, True)
+    for hit in hits:
+        #ANEXAMOS EL CONTADOR CAADA VES QUE SE DESTRULLA
+        score += 5
+        #ANEXAMOS EL SONIDO DE LA EXPLOSION AL DAÑAR UN METEORO
+        explosion_sound.play()
+        #ANEXAMOS LA EXPLOSION EN EL METEORO
+        explosion = Explosion(hit.rect.center)
+        all_sprites.add(explosion)
+        misil = Enemigos()
+        all_sprites.add(misil)
+        misil_list.add(misil)
+
+    hits = pygame.sprite.groupcollide(misil_list2, balas, True, True)
+    for hit in hits:
+        score += 5
+        explosion_sound.play()
+        explosion = Explosion(hit.rect.center)
+        all_sprites.add(explosion) 
+        misil2= Enemigo2()
+        all_sprites.add(misil2)
+        misil_list2.add(misil2)
+
+    #AUMENTA LA BARRA DE SALUD
+    hits3 = pygame.sprite.spritecollide(jugador, escudo_list, True)
+    for hit in hits3:
+            if jugador.shield == 100:
+                jugador.shield += 0
+                salud = Escudo()
+                all_sprites.add(salud)
+                escudo_list.add(salud)
+            else:
+                jugador.shield += 25
+                salud = Escudo()
+                all_sprites.add(salud)
+                escudo_list.add(salud)
+
+    #COLISIONES CON EL ENEMIGO
+    hits = pygame.sprite.spritecollide(jugador, misil_list, True)
+    #HACEMOS UN BUCLE PARA DISMINUIR LA VARIABLE SHIELD
+    for hit in hits:
+        jugador.shield -= 25
+        misil = Enemigos()
+        all_sprites.add(misil)
+        misil_list.add(misil)
+        if jugador.shield <= 0:
+            game_over = True
+
+    hits2 = pygame.sprite.spritecollide(jugador, misil_list2, True)
+    for hit in hits2:
+        jugador.shield -= 25
+        misil2= Enemigo2()
+        all_sprites.add(misil2)
+        misil_list2.add(misil2)
+        if jugador.shield <= 0:
+            game_over = True
+
+    screen.blit(fondopantalla,[0,0])
+    all_sprites.draw(screen)
+
+    #MARCADOR
+    draw_text(screen, str(score), 25, ANCHO // 2, 10)
+    #BARRA DE SALUD
+    draw_shield_bar(screen, 5, 5, jugador.shield)
+    #MARCADO VENTANA GAME OVER
+    #show_go_screen.draw_text(screen, str(score), 30, ANCHO // 2, ALTO // 2)
+    pygame.display.flip()
+pygame.quit() 
